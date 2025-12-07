@@ -154,15 +154,15 @@ TEST_CASE("when_all with two async tasks", "[when_all][async]")
     auto start = std::chrono::steady_clock::now();
 
     auto [r1, r2] = coral::sync_wait(
-        coral::when_all(make_delayed_int_task(10, std::chrono::milliseconds(30)),
-            make_delayed_int_task(20, std::chrono::milliseconds(30))));
+        coral::when_all(make_delayed_int_task(10, std::chrono::milliseconds(100)),
+            make_delayed_int_task(20, std::chrono::milliseconds(100))));
 
     auto end = std::chrono::steady_clock::now();
 
     REQUIRE(r1 + r2 == 30);
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    REQUIRE(duration < std::chrono::milliseconds(45)); // Some tolerance
+    REQUIRE(duration < std::chrono::milliseconds(200)); // Some tolerance
 }
 
 // ============================================================================

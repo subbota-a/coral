@@ -1,0 +1,33 @@
+---
+BasedOnStyle: LLVM
+AccessModifierOffset: -4
+AlignAfterOpenBracket: DontAlign
+AlignOperands: DontAlign
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: false
+BinPackArguments: false
+BinPackParameters: OnePerLine
+BraceWrapping:
+  AfterFunction: true
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeConceptDeclarations: Always
+BreakBeforeBraces: Custom
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: BeforeComma
+BreakInheritanceList: BeforeComma
+BreakTemplateDeclarations: Yes
+ColumnLimit: 100
+IndentWidth: 4
+InsertBraces: true
+PackConstructorInitializers: Never
+PointerAlignment: Left
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: "<coral/.*>"
+    Priority: 1
+  - Regex: '".+"'
+    Priority: 2
+  - Regex: "<.*[.].*>"
+    Priority: 3
+  - Regex: "<^[.]+>"
+    Priority: 4

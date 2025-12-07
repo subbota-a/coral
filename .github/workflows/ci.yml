@@ -1,0 +1,113 @@
+name: CI with vcpkg
+# This is an example showing how to use vcpkg in GitHub Actions
+# You can replace ci.yml with this if you prefer the vcpkg approach
+
+on:
+  push:
+    branches: [ main, v1 ]
+  pull_request:
+    branches: [ main, v1 ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.config.name }} C++${{ matrix.std }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {
+              name: "gcc",
+              os: ubuntu-latest,
+              cxx: g++-14,
+              cc: gcc-14,
+              compiler: gcc
+            }
+          - {
+              name: "clang",
+              os: ubuntu-latest,
+              cxx: clang++-18,
+              cc: clang-18,
+              compiler: clang
+            }
+          - {
+              name: "msvc",
+              os: windows-latest,
+              compiler: msvc
+            }
+        std: [20, 23]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup vcpkg binary cache
+        run: mkdir -p ${{ github.workspace }}/vcpkg_cache
+
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_cache
+          key: vcpkg-${{ matrix.config.name }}-${{ hashFiles('vcpkg.json') }}
+
+      - name: Install libc++ (clang)
+        if: matrix.config.compiler == 'clang'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libc++-18-dev libc++abi-18-dev
+
+      - name: Configure (gcc)
+        if: matrix.config.compiler == 'gcc'
+        env:
+          CXX: ${{ matrix.config.cxx }}
+          CC: ${{ matrix.config.cc }}
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
+        run: |
+          cmake -B build \
+            -G Ninja \
+            --toolchain $VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake \
+            -DCORAL_BUILD_TESTS=ON \
+            -DCORAL_BUILD_EXAMPLES=ON \
+            -DCMAKE_CXX_STANDARD=${{ matrix.std }} \
+            -DCMAKE_CXX_FLAGS_INIT="-Wall -Wpedantic -Wshadow -Werror" \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Configure (clang)
+        if: matrix.config.compiler == 'clang'
+        env:
+          CXX: ${{ matrix.config.cxx }}
+          CC: ${{ matrix.config.cc }}
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
+        run: |
+          cmake -B build \
+            -G Ninja \
+            --toolchain $VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake \
+            -DVCPKG_OVERLAY_TRIPLETS=custom-triplets \
+            -DVCPKG_TARGET_TRIPLET=x64-linux-clang \
+            -DCORAL_BUILD_TESTS=ON \
+            -DCORAL_BUILD_EXAMPLES=ON \
+            -DCMAKE_CXX_STANDARD=${{ matrix.std }} \
+            -DCMAKE_CXX_FLAGS_INIT="-stdlib=libc++ -Wall -Wpedantic -Wshadow -Werror -fexperimental-library" \
+            -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++ -fuse-ld=lld" \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Configure (msvc)
+        if: matrix.config.compiler == 'msvc'
+        env:
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
+        run: |
+          cmake -B build `
+            -G "Visual Studio 17 2022" -A x64 `
+            --toolchain $env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake `
+            -DCORAL_BUILD_TESTS=ON `
+            -DCORAL_BUILD_EXAMPLES=ON `
+            -DCMAKE_CXX_STANDARD=${{ matrix.std }} `
+            -DCMAKE_CXX_FLAGS_INIT="/W4 /permissive- /WX" `
+            -DCMAKE_CONFIGURATION_TYPES=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Run tests
+        run: ctest --build-config Release --test-dir build --output-on-failure

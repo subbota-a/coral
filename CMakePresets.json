@@ -1,0 +1,195 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_TOOLCHAIN_FILE": {
+                    "type": "FILEPATH",
+                    "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+                },
+                "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/custom-triplets",
+                "CORAL_BUILD_TESTS": true,
+                "CORAL_BUILD_EXAMPLES": true,
+                "CMAKE_CXX_CLANG_TIDY": "clang-tidy",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/test_install"
+            },
+            "environment": {
+                "VCPKG_ROOT": "${sourceDir}/../vcpkg"
+            }
+        },
+        {
+            "name": "clang",
+            "hidden": true,
+            "generator": "Ninja",
+            "cacheVariables": {
+                "VCPKG_TARGET_TRIPLET": "x64-linux-clang",
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_CXX_FLAGS_INIT": "-stdlib=libc++ -Wall -Wpedantic -Wshadow -Werror -fexperimental-library",
+                "CMAKE_EXE_LINKER_FLAGS": "-stdlib=libc++ -fuse-ld=lld"
+            }
+        },
+        {
+            "name": "clang-tsan",
+            "hidden": true,
+            "inherits": [
+                "clang"
+            ],
+            "cacheVariables": {
+                "VCPKG_TARGET_TRIPLET": "x64-linux-clang-tsan"
+            }
+        },
+        {
+            "name": "clang-asan",
+            "hidden": true,
+            "inherits": [
+                "clang"
+            ],
+            "cacheVariables": {
+                "VCPKG_TARGET_TRIPLET": "x64-linux-clang-asan",
+                "CMAKE_CXX_FLAGS_INIT": "-stdlib=libc++ -Wall -Wpedantic -Wshadow -Werror  -fexperimental-library -fsanitize=address -g -fno-omit-frame-pointer -O1 -fno-optimize-sibling-calls",
+                "CMAKE_EXE_LINKER_FLAGS": "-stdlib=libc++ -fuse-ld=lld -fsanitize=address"
+            }
+        },
+        {
+            "name": "gcc",
+            "hidden": true,
+            "generator": "Ninja",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "CMAKE_CXX_FLAGS_INIT": "-Wall -Wpedantic -Wshadow -Werror",
+                "CMAKE_CXX_STANDARD": "23"
+            }
+        },
+        {
+            "name": "gcc-asan",
+            "hidden": true,
+            "inherits": [
+                "gcc"
+            ],
+            "cacheVariables": {
+                "VCPKG_TARGET_TRIPLET": "x64-linux-gcc-asan",
+                "CMAKE_CXX_FLAGS_INIT": "-Wall -Wpedantic -Wshadow -Werror -fsanitize=address -g -fno-omit-frame-pointer -O1 -fno-optimize-sibling-calls",
+                "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address"
+            }
+        },
+        {
+            "name": "gcc-tsan",
+            "hidden": true,
+            "inherits": [
+                "gcc"
+            ],
+            "cacheVariables": {
+                "VCPKG_TARGET_TRIPLET": "x64-linux-gcc-tsan",
+                "CMAKE_CXX_FLAGS_INIT": "-Wall -Wpedantic -Wshadow -Werror -fsanitize=thread -g -fno-omit-frame-pointer -O1 -fno-optimize-sibling-calls",
+                "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=thread"
+            }
+        },
+        {
+            "name": "msvc",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_CXX_FLAGS_INIT": "/W4 /permissive- /WX"
+            }
+        },
+        {
+            "name": "debug",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "release",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        },
+        {
+            "name": "clang-debug",
+            "inherits": [
+                "base",
+                "clang",
+                "debug"
+            ],
+            "binaryDir": "${sourceDir}/cmake-clang-debug"
+        },
+        {
+            "name": "clang-release",
+            "inherits": [
+                "base",
+                "clang",
+                "release"
+            ],
+            "binaryDir": "${sourceDir}/cmake-clang-release"
+        },
+        {
+            "name": "clang-asan-release",
+            "inherits": [
+                "base",
+                "clang-asan",
+                "release"
+            ],
+            "binaryDir": "${sourceDir}/cmake-clang-asan-release"
+        },
+        {
+            "name": "gcc-debug",
+            "inherits": [
+                "base",
+                "gcc",
+                "debug"
+            ],
+            "binaryDir": "${sourceDir}/cmake-gcc-debug"
+        },
+        {
+            "name": "gcc-release",
+            "inherits": [
+                "base",
+                "gcc",
+                "release"
+            ],
+            "binaryDir": "${sourceDir}/cmake-gcc-release"
+        },
+        {
+            "name": "gcc-asan-release",
+            "inherits": [
+                "base",
+                "gcc-asan",
+                "release"
+            ],
+            "binaryDir": "${sourceDir}/cmake-gcc-asan-release"
+        },
+        {
+            "name": "gcc-tsan-release",
+            "inherits": [
+                "base",
+                "gcc-tsan",
+                "release"
+            ],
+            "binaryDir": "${sourceDir}/cmake-gcc-tsan-release"
+        },
+        {
+            "name": "msvc-debug",
+            "inherits": [
+                "base",
+                "msvc",
+                "debug"
+            ],
+            "binaryDir": "${sourceDir}/cmake-msvc-debug"
+        },
+        {
+            "name": "msvc-release",
+            "inherits": [
+                "base",
+                "msvc",
+                "release"
+            ],
+            "binaryDir": "${sourceDir}/cmake-msvc-release"
+        }
+    ]
+}

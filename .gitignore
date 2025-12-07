@@ -1,0 +1,5 @@
+/cmake-*
+.vscode
+.cache
+vcpkg
+compile_commands.json

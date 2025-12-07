@@ -14,3 +14,7 @@ foreach(_source ${_test_sources})
     add_test(NAME ${_target} COMMAND ${_target})
 
 endforeach()
+
+add_executable(test_link_conflicts module1.cpp module2.cpp)
+target_link_libraries(test_link_conflicts PRIVATE coral::coral)
+target_compile_features(test_link_conflicts PRIVATE cxx_std_23)

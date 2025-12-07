@@ -76,7 +76,7 @@ constexpr decltype(auto) for_tuple(T&& v)
     return std::forward<T>(v);
 }
 
-std::monostate for_tuple() { return {}; }
+inline std::monostate for_tuple() { return {}; }
 
 // Check if type T is contained in the list Ts...
 template <typename T, typename... Ts>

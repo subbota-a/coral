@@ -1,0 +1,13 @@
+#include <coral/async_result.hpp>
+#include <coral/concepts.hpp>
+#include <coral/generator.hpp>
+#include <coral/mutex.hpp>
+#include <coral/nursery.hpp>
+#include <coral/single_event.hpp>
+#include <coral/sync_wait.hpp>
+#include <coral/task.hpp>
+#include <coral/when_all_complete.hpp>
+#include <coral/when_all.hpp>
+#include <coral/when_any.hpp>
+#include <coral/when_signal.hpp>
+#include <coral/when_stopped.hpp>

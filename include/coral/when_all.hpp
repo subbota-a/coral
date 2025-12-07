@@ -17,7 +17,7 @@
 namespace coral {
 namespace detail {
 
-std::monostate get_non_void_task_result(adaptor_task<void>& task)
+inline std::monostate get_non_void_task_result(adaptor_task<void>& task)
 {
     task.get_result_value();
     return {};

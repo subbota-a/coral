@@ -75,7 +75,7 @@ struct spawn_task {
     }
 };
 
-spawn_task spawn_promise::get_return_object() noexcept { return {handle_t::from_promise(*this)}; }
+inline spawn_task spawn_promise::get_return_object() noexcept { return {handle_t::from_promise(*this)}; }
 
 template <awaitable Awaitable>
 spawn_task spawn_adapter(Awaitable awaitable)
@@ -127,14 +127,14 @@ protected:
     std::coroutine_handle<> continuation_{std::noop_coroutine()};
 };
 
-void spawn_promise::start(nursery_task_promise_base& nursery_promise) noexcept
+inline void spawn_promise::start(nursery_task_promise_base& nursery_promise) noexcept
 {
     nursery_promise_ = &nursery_promise;
     nursery_promise_->child_started();
     handle_t::from_promise(*this).resume();
 }
 
-std::coroutine_handle<> spawn_promise::finish() noexcept
+inline std::coroutine_handle<> spawn_promise::finish() noexcept
 {
     return nursery_promise_->child_completed();
 }

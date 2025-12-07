@@ -56,6 +56,13 @@ Coral provides just the primitives, letting you integrate with your existing inf
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## Building and Installation
+```bash
+cmake -S . -B build
+cmake --build build --target install
+```
+See the [examples](examples/) folder for usage.
+
 ## API Overview
 
 ### `task<T>`

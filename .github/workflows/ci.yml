@@ -4,9 +4,7 @@ name: CI with vcpkg
 
 on:
   push:
-    branches: [ main, v1 ]
   pull_request:
-    branches: [ main, v1 ]
   workflow_dispatch:
 
 jobs:

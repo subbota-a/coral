@@ -2,7 +2,7 @@
 
 A header-only C++20/23 **cor**outine **a**bstraction **l**ibrary
 
-[![CI](https://github.com/subbota-a/coral/actions/workflows/ci.yml/badge.svg)](https://github.com/subbota-a/coral/actions/workflows/ci.yml)
+[![CI](https://github.com/subbota-a/coral/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/subbota-a/coral/actions/workflows/ci.yml?query=branch%3Amaster)
 
 ## Why Another Coroutine Library?
 
@@ -12,10 +12,10 @@ You only need the coroutine primitives — nothing more, nothing less.
 
 **Why not use existing libraries?** They often include features you don't need in an **existing** project, along with other critical issues:
 
-- **Lack of extensibility** - Difficult to integrate with other coroutine primitives (e.g., asio)
-- **Lack of [structured concurrency](https://ericniebler.com/2020/11/08/structured-concurrency)** - Essential thing to write reliable async code (e.g. asio, libcoro)
+- **Lack of extensibility** - Difficult to integrate with other coroutine primitives (e.g. asio)
+- **Lack of [structured concurrency](https://ericniebler.com/2020/11/08/structured-concurrency)** - Essential for writing reliable async code (e.g. asio, libcoro)
 - **Abandoned maintenance** - e.g., cppcoro
-- **Application-level features** - Libraries bundle network I/O, file I/O, timers, schedulers, thread pools, etc — bringing extra dependencies to OS or other libraries. (e.g. libcoro, consurrentcpp, ...)
+- **Application-level features** - Libraries bundle network I/O, file I/O, timers, schedulers, thread pools, etc — bringing extra dependencies to OS or other libraries. (e.g. libcoro, concurrentcpp, ...)
 
 For new projects, a full-featured library might be perfect. But for existing codebases, **additional features introduce unnecessary dependencies**. 
 Coral provides just the primitives, letting you integrate with your existing infrastructure (or compose with libraries like stdexec for executors).
@@ -24,9 +24,9 @@ Coral provides just the primitives, letting you integrate with your existing inf
 
 - **Depends on STL only** - No external libraries required
 - **Pure Coroutine Primitives** - No threading, no executors, no I/O, no OS dependencies - just coroutines
-- **Structured concurrency** - Coroutines never exit earlier than children coroutines
+- **Structured concurrency** - Coroutines never exit before their child coroutines
 - **Cooperative cancellation** - Integration with `std::stop_token`
-- **Special support for `std::expected`** - cancellation respects `expected` error
+- **Special support for `std::expected`** - cancellation respects `expected` errors
 - **Header-Only** - Easy integration into any project
 
 ## Quick Primitives Overview
@@ -38,7 +38,7 @@ Coral provides just the primitives, letting you integrate with your existing inf
 - **[`when_all()`](#when_all)** - All or nothing: returns all successes or first error
 - **[`when_any()`](#when_any)** - First success: returns first successful result
 - **[`when_stopped()`](#when_stopped)** - Waits for cancellation via `std::stop_token`
-- **[`when_signal()`](#when_signal)** - Waits for ctrl+c (SIGINT) or (SIGTERM) signal
+- **[`when_signal()`](#when_signal)** - Waits for Ctrl+C (SIGINT) or SIGTERM signal
 - **[`mutex`, `when_locked()`, `unique_lock`](#mutex-when_locked-unique_lock)** - Async mutex for coroutine synchronization
 - **[`scheduler` concept](#scheduler-concept)** - Concept for types that can schedule coroutine execution
 - **[`single_event<T>`](#single_eventt)** - One-shot event for passing a value from producer to consumer
@@ -63,7 +63,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 A lazy coroutine task that begins execution only when awaited. Supports value types, references, and void.
 
 ```c++
-#include <coral/task/hpp>
+#include <coral/task.hpp>
 
 coral::task<int> sum(int a, int b) {
   co_return a + b;
@@ -72,11 +72,9 @@ coral::task<int> sum(int a, int b) {
 
 ### `nursery_task<T>`
 
-Similar to `task<T>`, but provides access to a `nursery` object that allows spawning an unlimited number of child coroutines in a "fire-and-forget" style in 
-terms of parent doesn't receive the result of child coroutines execution. But `nursery_task<T>` completes only after all children complete. 
+Similar to `task<T>`, but provides access to a `nursery` object for spawning child coroutines in a "fire-and-forget" style. The parent does not receive the results of child coroutine execution, but `nursery_task<T>` only completes after all children complete.
 
-_Causion!_ Nursery coroutine's local variables are destroyed before all children coroutine completes,
-so don't pass references to local variables to child coroutines.
+_Caution!_ The nursery coroutine's local variables are destroyed before all child coroutines complete, so don't pass references to local variables to child coroutines.
 
 ```c++
 #include <coral/nursery.hpp>
@@ -86,28 +84,28 @@ so don't pass references to local variables to child coroutines.
 coral::task<> client(socket s, std::stop_token stop_token);
 
 coral::nursery_task<bool> server(socket s, std::stop_token stop_token) {
-  std::stop_source stop_source;
-  std::stop_callback callback(stop_token, [&stop_source]{ stop_source.request_stop(); });
+  std::stop_source inner_stop_source;
+  std::stop_callback propagate(stop_token, [&inner_stop_source]{ inner_stop_source.request_stop(); });
 
   auto nursery = co_await coral::get_nursery();
 
   while(!stop_token.stop_requested()){
-    auto [connection, error] = co_await accept(s, stop_token); // out of the scope coral library
+    auto [connection, error] = co_await accept(s, stop_token); // outside the scope of the Coral library
     if (error) { // if accept fails then cancel all
-      stop_source.request_stop();
+      inner_stop_source.request_stop();
       co_return false; // completes with error
     }
     // Add client coroutine to the nursery collection
-    nursery.start(client(std::move(connection), stop_token.get_token()));
+    nursery.start(client(std::move(connection), inner_stop_source.get_token()));
   }
-  co_return true; // completes by stop_token request
+  co_return true; // completes on stop_token request
 }
 
 ```
 
 ### `sync_wait()`
 
-```cpp
+```c++
 auto sync_wait(awaitable auto&& awaitable) // exposition only
 ```
 
@@ -115,7 +113,7 @@ Starts coroutine execution in the current thread. If the coroutine doesn't compl
 blocks the current thread until completion. Returns the coroutine result or rethrows any exception.
 
 
-```cpp
+```c++
 #include <coral/sync_wait.hpp>
 #include <coral/task.hpp>
 
@@ -128,7 +126,7 @@ int main() {
 
 ### `when_all_complete()`
 
-```cpp
+```c++
 // Exposition only signature
 
 std::tuple<coral::async_result<T>, ...> when_all_complete(awaitable auto&&... awaitables) 
@@ -139,7 +137,7 @@ std::vector<coral::async_result<T>> when_all_complete(std::ranges::range auto&& 
 Starts all coroutines in the order they are listed and asynchronously waits for all to complete.
 Returns a tuple of `async_result` values containing either the successful result or an exception for each coroutine.
 
-```cpp
+```c++
 #include <coral/when_all_complete.hpp>
 #include <coral/task.hpp>
 
@@ -147,7 +145,7 @@ coral::task<int> fetch_a();
 coral::task<int> fetch_b();
 
 coral::task<void> variadic_example() {
-  std::tuple<async_result<int>, async_result<int>> = 
+  std::tuple<coral::async_result<int>, coral::async_result<int>> = 
     co_await coral::when_all_complete(fetch_a(), fetch_b());
 }
 
@@ -159,7 +157,7 @@ coral::task<void> range_example(std::vector<coral::task<int>> tasks) {
 
 ### `when_all()`
 
-```cpp
+```c++
 // Exposition only signature
 
 std::tuple<T, ...> when_all(awaitable auto&&... awaitables)
@@ -180,7 +178,7 @@ The first error is returned via exception if it was an exception,
 or as `std::expected` if the task returned `unexpected`.
 The caller resumes on the thread that completed the last task. 
 
-```cpp
+```c++
 #include <coral/when_all.hpp>
 #include <coral/task.hpp>
 
@@ -227,7 +225,7 @@ coral::task<void> range_example_with_expected_void(
 
 ### `when_any()`
 
-```cpp
+```c++
 // Exposition only signature
 
 std::pair<size_t, std::variant<T, ...>> when_any(awaitable auto&&... awaitables)
@@ -248,7 +246,7 @@ The first error is returned via exception if it was an exception,
 or as `std::expected` with index pointing to the first failed coroutine if the task returned `unexpected`.
 The caller resumes on the thread that completed the last task.
 
-```cpp
+```c++
 #include <coral/when_any.hpp>
 #include <coral/task.hpp>
 
@@ -288,7 +286,7 @@ coral::task<void> range_example_with_expected(
 
 ### `when_stopped()`
 
-```cpp
+```c++
 // Exposition only signature
 
 awaitable auto when_stopped(std::stop_token stop_token)
@@ -298,7 +296,7 @@ Returns an awaitable that completes when `stop_token.stop_requested()` becomes t
 If already requested, completes immediately without suspending.
 The caller resumes on the thread that called `stop_source.request_stop()`.
 
-```cpp
+```c++
 #include <coral/when_stopped.hpp>
 #include <coral/task.hpp>
 
@@ -311,7 +309,7 @@ coral::task<void> wait_for_cancellation(std::stop_token stop_token)
 
 ### `when_signal()`
 
-```cpp
+```c++
 // Exposition only signature
 
 awaitable auto when_signal(std::stop_token stop_token, int sig)
@@ -323,7 +321,7 @@ Only one `when_signal` can be active at a time; throws `std::runtime_error` if c
 When complete, restores the default signal handler (`SIG_DFL`).
 The caller resumes on the dedicated thread.
 
-```cpp
+```c++
 #include <coral/when_signal.hpp>
 #include <coral/task.hpp>
 #include <csignal>
@@ -337,7 +335,7 @@ coral::task<void> wait_for_interrupt(std::stop_token stop_token)
 
 ### `mutex`, `when_locked()`, `unique_lock`
 
-```cpp
+```c++
 // Exposition only signature
 
 class mutex; // non-copyable, non-movable
@@ -351,7 +349,7 @@ Unlike `std::mutex`, waiting coroutines suspend instead of blocking threads.
 `mutex` is non-copyable and non-movable.
 Waiting coroutines are stored in a LIFO stack.
 
-```cpp
+```c++
 #include <coral/mutex.hpp>
 
 coral::mutex m;
@@ -389,7 +387,7 @@ Thread 1:
 
 You can provide a custom scheduler to control how waiters are resumed:
 
-```cpp
+```c++
 auto lock = co_await coral::when_locked(m, my_scheduler);
 ```
 
@@ -403,7 +401,7 @@ With a thread pool scheduler:
 
 Concept for types that can schedule coroutine execution. Defined in `<coral/concepts.hpp>`.
 
-```cpp
+```c++
 template<typename T>
 concept scheduler = requires(T& s, std::coroutine_handle<> h) {
     s.schedule(h);
@@ -418,7 +416,7 @@ A scheduler is any type with a `schedule` method that accepts a coroutine handle
 
 Coral provides `sync_scheduler` as the default:
 
-```cpp
+```c++
 struct sync_scheduler {
     void schedule(std::coroutine_handle<> h) const { h(); }
 };
@@ -426,7 +424,7 @@ struct sync_scheduler {
 
 ### `single_event<T>`
 
-```cpp
+```c++
 // Exposition only signature
 
 template<typename T = void>
@@ -454,7 +452,7 @@ One-shot event primitive for passing a value (or just a signal) from a producer 
 - Zero allocations — all state is stored inside `single_event`
 
 **Order of operations:**
-- `set_value()` or `set_exception` can be called before or after `co_await`
+- `set_value()` or `set_exception()` can be called before or after `co_await`
 - If value is already set, `co_await` returns immediately
 - If value is not yet set, `co_await` suspends the coroutine
 
@@ -463,12 +461,12 @@ One-shot event primitive for passing a value (or just a signal) from a producer 
 - `set_value()` / `set_exception()` can only be called once per sender
 - `co_await` or `get_awaitable` can only be called once
 - Value is moved out on `co_await` (move-only types are supported)
-- If `co_await` is called without an active sender (not created or destroyed without `set_xxx()`), `single_event_error` is thrown
-- If sender destroys without calling `set_xxx` when consumer is suspended in `co_await` the consumer is resumed and `single_event_error` is thrown
+- If `co_await` is called without an active sender (not created, or destroyed without calling `set_xxx()`), `single_event_error` is thrown
+- If the sender is destroyed without calling `set_xxx()` while the consumer is suspended in `co_await`, the consumer is resumed and `single_event_error` is thrown
 
 #### Basic Usage
 
-```cpp
+```c++
 #include <coral/single_event.hpp>
 #include <coral/task.hpp>
 
@@ -489,12 +487,12 @@ coral::task<void> example() {
 ```
 
 #### Producer and Consumer
-```cpp
+```c++
 #include <coral/single_event.hpp>
 #include <coral/task.hpp>
 #include <coral/when_all.hpp>
 
-coral::task<> producer(coral::single_event<> sender);
+coral::task<> producer(coral::single_event<>::sender sender);
 
 coral::task<> example() {
   coral::single_event<> event;
@@ -507,7 +505,7 @@ coral::task<> example() {
 
 Common pattern for wrapping callback-based APIs:
 
-```cpp
+```c++
 coral::task<Response> async_http_get(const std::string& url) {
     coral::single_event<Response> event;
 
@@ -527,7 +525,7 @@ coral::task<Response> async_http_get(const std::string& url) {
 
 ### `generator<T>`
 
-```cpp
+```c++
 // Exposition only signature
 
 template <typename Ref, typename V = void>
@@ -550,7 +548,7 @@ Common instantiations:
 
 #### Basic Usage
 
-```cpp
+```c++
 #include <coral/generator.hpp>
 
 coral::generator<int> iota(int n) {
@@ -568,7 +566,7 @@ void example() {
 
 #### Yielding References
 
-```cpp
+```c++
 coral::generator<int&> enumerate(std::vector<int>& vec) {
     for (auto& elem : vec) {
         co_yield elem;  // yields reference to element
@@ -584,7 +582,7 @@ void modify_all(std::vector<int>& vec) {
 
 #### Using with Ranges
 
-```cpp
+```c++
 #include <ranges>
 
 coral::generator<int> iota(int n) {

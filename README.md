@@ -6,28 +6,36 @@ A header-only C++20/23 **cor**outine **a**bstraction **l**ibrary
 
 ## Why Another Coroutine Library?
 
-Coral is designed for integrating coroutines into **existing projects**. 
-You've finally decided to refactor your existing complex asynchronous code to use C++20 coroutines and want to reuse as much of your existing codebase as possible.
-You only need the coroutine primitives — nothing more, nothing less.
+Coral is designed for integrating coroutines into **existing projects** that already have their own I/O, thread pools, and async infrastructure.
 
-**Why not use existing libraries?** They often include features you don't need in an **existing** project, along with other critical issues:
+### The Problem
 
-- **Lack of extensibility** - Difficult to integrate with other coroutine primitives (e.g. asio)
-- **Lack of [structured concurrency](https://ericniebler.com/2020/11/08/structured-concurrency)** - Essential for writing reliable async code (e.g. asio, libcoro)
-- **Abandoned maintenance** - e.g., cppcoro
-- **Application-level features** - Libraries bundle network I/O, file I/O, timers, schedulers, thread pools, etc — bringing extra dependencies to OS or other libraries. (e.g. libcoro, concurrentcpp, ...)
+You have a complex codebase with callbacks, thread pools, and state machines. You want to migrate to coroutines — replace callback chains with sequential `co_await` calls. But you need to keep your existing infrastructure.
 
-For new projects, a full-featured library might be perfect. But for existing codebases, **additional features introduce unnecessary dependencies**. 
-Coral provides just the primitives, letting you integrate with your existing infrastructure (or compose with libraries like stdexec for executors).
+Most coroutine libraries are **all-or-nothing**: they bundle networking, timers, thread pools, and executors. To use their coroutine primitives, you must adopt their entire runtime. This creates problems:
 
-## Features
+- **Dependency bloat** — their I/O stack, third-party libraries (often with specific versions), and build complexity add up; build times increase
+- **Executor coupling** — coroutines are tied to the library's executors; you can't use your own thread pools or event loops
+- **No [structured concurrency](https://ericniebler.com/2020/11/08/structured-concurrency)** — spawned coroutines "escape" and live independently; you can't cancel a tree of coroutines and wait for them all to finish
 
-- **Depends on STL only** - No external libraries required
-- **Pure Coroutine Primitives** - No threading, no executors, no I/O, no OS dependencies - just coroutines
-- **Structured concurrency** - Coroutines never exit before their child coroutines
+### Example: Partial Restart
+
+A server with multiple endpoints: client API on port X, admin API on port Y, HTTP on port Z. Configuration changes — you need to restart just port X and its sessions, not the entire application.
+
+Without structured concurrency, spawned session coroutines live in a global context. You can't wait for all sessions on port X to finish without blocking threads or counting by hand.
+
+With Coral's `nursery_task`, when `server()` returns, all its child sessions are guaranteed complete. No orphan coroutines, no manual tracking.
+
+## What Coral Provides
+
+- **Pure coroutine primitives** - with no opinions about I/O, threading, or execution
+- **[Structured concurrency](https://ericniebler.com/2020/11/08/structured-concurrency)** — parent coroutines always outlive children
 - **Cooperative cancellation** - Integration with `std::stop_token`
 - **Special support for `std::expected`** - cancellation respects `expected` errors
+- **Depends on STL only** - No external libraries required
 - **Header-Only** - Easy integration into any project
+
+You bring the I/O and scheduling. Coral provides the coroutine control flow.
 
 ## Quick Primitives Overview
 
@@ -81,7 +89,7 @@ coral::task<int> sum(int a, int b) {
 
 Similar to `task<T>`, but provides access to a `nursery` object for spawning child coroutines dynamically. Child coroutines run concurrently with the parent and don't return results individually, but the parent automatically waits for all children to complete before exiting.
 
-This enables **structured concurrency**: when `co_await server()` returns, you know all spawned sessions have finished. Compare this to `asio::spawn` where coroutines "escape" and live independently — you can't reliably shut down because you don't know when (or if) spawned coroutines will complete.
+This enables **structured concurrency**: when `co_await server()` returns, you know all spawned sessions have finished — no orphan coroutines, no manual tracking.
 
 _Caution!_ The nursery coroutine's local variables are destroyed before all child coroutines complete, so don't pass references to local variables to child coroutines.
 

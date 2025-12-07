@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(coral
     VERSION 0.1.0
-    DESCRIPTION "A header-only C++20 coroutine library"
+    DESCRIPTION "A header-only C++20/23 coroutine library"
     LANGUAGES CXX
 )
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)

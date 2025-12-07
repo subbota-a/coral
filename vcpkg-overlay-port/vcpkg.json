@@ -1,0 +1,17 @@
+{
+  "name": "coral",
+  "version": "0.1.0",
+  "description": "Header-only C++20/23 coroutine library with structured concurrency and zero dependencies",
+  "homepage": "https://github.com/subbota-a/coral",
+  "license": "MIT",
+  "dependencies": [
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    }
+  ]
+}

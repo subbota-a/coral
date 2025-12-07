@@ -79,33 +79,41 @@ coral::task<int> sum(int a, int b) {
 
 ### `nursery_task<T>`
 
-Similar to `task<T>`, but provides access to a `nursery` object for spawning child coroutines in a "fire-and-forget" style. The parent does not receive the results of child coroutine execution, but `nursery_task<T>` only completes after all children complete.
+Similar to `task<T>`, but provides access to a `nursery` object for spawning child coroutines dynamically. Child coroutines run concurrently with the parent and don't return results individually, but the parent automatically waits for all children to complete before exiting.
+
+This enables **structured concurrency**: when `co_await server()` returns, you know all spawned sessions have finished. Compare this to `asio::spawn` where coroutines "escape" and live independently — you can't reliably shut down because you don't know when (or if) spawned coroutines will complete.
 
 _Caution!_ The nursery coroutine's local variables are destroyed before all child coroutines complete, so don't pass references to local variables to child coroutines.
 
 ```c++
 #include <coral/nursery.hpp>
 #include <coral/task.hpp>
-#include <coral/when_signal.hpp>
 
-coral::task<> client(socket s, std::stop_token stop_token);
+coral::task<> handle_session(socket s, std::stop_token stop_token);
 
-coral::nursery_task<bool> server(socket s, std::stop_token stop_token) {
-  std::stop_source inner_stop_source;
-  std::stop_callback propagate(stop_token, [&inner_stop_source]{ inner_stop_source.request_stop(); });
+// Example: TCP server that spawns a coroutine per connection.
+// Problem: if accept() fails, we want to close the listener and gracefully
+// shut down all active sessions before returning.
+// Structured concurrency guarantees: when server() returns, ALL sessions
+// have completed. No "orphan" coroutines left running.
+coral::nursery_task<bool> server(socket listener, std::stop_token stop_token) {
+  // Inner stop_source to cancel all sessions when server needs to shut down
+  std::stop_source session_stop;
+  std::stop_callback propagate(stop_token, [&]{ session_stop.request_stop(); });
 
   auto nursery = co_await coral::get_nursery();
 
-  while(!stop_token.stop_requested()){
-    auto [connection, error] = co_await accept(s, stop_token); // outside the scope of the Coral library
-    if (error) { // if accept fails then cancel all
-      inner_stop_source.request_stop();
-      co_return false; // completes with error
+  while (!stop_token.stop_requested()) {
+    auto [connection, error] = co_await accept(listener, stop_token);
+    if (error) {
+      // Accept failed — stop all sessions and wait for them to finish
+      session_stop.request_stop();
+      co_return false;  // Won't return until all sessions complete
     }
-    // Add client coroutine to the nursery collection
-    nursery.start(client(std::move(connection), inner_stop_source.get_token()));
+    // Spawn session handler — nursery tracks it
+    nursery.start(handle_session(std::move(connection), session_stop.get_token()));
   }
-  co_return true; // completes on stop_token request
+  co_return true;  // Graceful shutdown: all sessions completed
 }
 
 ```

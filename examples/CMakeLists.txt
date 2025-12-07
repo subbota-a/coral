@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(coral-examples LANGUAGES CXX)
 
 if(NOT CORAL_BUILD_TESTS)
-    find_package(coral REQUIRED)
+    find_package(coral REQUIRED CONFIG)
 endif()
 
 file(GLOB _examples example_*.cpp)

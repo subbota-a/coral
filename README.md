@@ -51,6 +51,7 @@ You bring the I/O and scheduling. Coral provides the coroutine control flow.
 - **[`scheduler` concept](#scheduler-concept)** - Concept for types that can schedule coroutine execution
 - **[`single_event<T>`](#single_eventt)** - One-shot event for passing a value from producer to consumer
 - **[`generator<T>`](#generatort)** - Synchronous generator that yields values lazily
+- **[`async_generator<T>`](#async_generatort)** - Asynchronous generator that supports `co_await` inside
 
 ## Requirements
 
@@ -65,6 +66,7 @@ You bring the I/O and scheduling. Coral provides the coroutine control flow.
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Building and Installation
+
 ```bash
 cmake -S . -B build
 cmake --build build --target install
@@ -626,5 +628,126 @@ void example() {
     // Using with C++23 algorithms
     int sum = std::ranges::fold_left(iota(10), 0, std::plus<>{});
     // sum = 45
+}
+```
+
+### `async_generator<T>`
+
+```c++
+// Exposition only signature
+
+template <typename Ref, typename V = void>
+class async_generator {
+public:
+  struct result{ 
+    explicit operator bool() const noexcept { return has_value(); }
+    bool has_value() const noexcept;
+
+    reference operator*() const noexcept { return value(); }
+    reference value() const noexcept
+  };
+
+  awaitable next() noexcept;
+};
+
+```
+
+Asynchronous generator coroutine that yields values lazily and supports `co_await` inside the coroutine body. Unlike synchronous `generator<T>`, async generator can perform asynchronous operations between yields.
+
+This is a **pull-based** primitive: the consumer drives execution by calling `co_await gen.next()`. The producer suspends on `co_yield` until the consumer requests the next value. This provides **automatic backpressure** — the producer won't run ahead of the consumer.
+
+#### Template Parameters
+
+Same as [`generator<T>`](#generatort):
+
+Common instantiations:
+- `async_generator<int>` - yields `int` values
+- `async_generator<int&>` - yields mutable references
+- `async_generator<const std::string&>` - yields const references
+
+#### Basic Usage
+
+```c++
+#include <coral/async_generator.hpp>
+
+coral::async_generator<int> async_range(int n) {
+    for (int i = 0; i < n; ++i) {
+        co_await some_async_operation();
+        co_yield i;
+    }
+}
+
+coral::task<void> consumer() {
+    auto gen = async_range(5);
+    while (auto result = co_await gen.next()) {
+        process(*result);  // 0, 1, 2, 3, 4
+    }
+}
+```
+
+#### The `next()` Method
+
+Returns an awaiter that, when `co_await`ed, produces a `result`:
+- If there's a value: `result.has_value() == true`, access via `*result` or `result.value()`
+- If end of sequence: `result.has_value() == false`
+- If error: exception is thrown from `co_await`
+
+#### Use Cases
+
+**Streaming data with backpressure:**
+
+```c++
+coral::async_generator<std::span<std::byte>> read_chunks(socket& s) {
+    std::array<std::byte, 4096> buffer;
+    while (true) {
+        size_t n = co_await s.async_read(buffer);
+        if (n == 0) break;
+        co_yield std::span{buffer.data(), n};
+    }
+}
+
+coral::task<void> process_stream(socket& s) {
+    auto gen = read_chunks(s);
+    while (auto chunk = co_await gen.next()) {
+        co_await slow_processing(*chunk);
+        // Producer waits here — no buffer overflow
+    }
+}
+```
+
+**API pagination:**
+
+```c++
+coral::async_generator<User> fetch_all_users(http_client& client) {
+    std::string cursor;
+    do {
+        auto page = co_await client.get("/users?cursor=" + cursor);
+        for (auto& user : page.users) {
+            co_yield std::move(user);
+        }
+        cursor = page.next_cursor;
+    } while (!cursor.empty());
+}
+
+coral::task<void> find_admin(http_client& client) {
+    auto gen = fetch_all_users(client);
+    while (auto user = co_await gen.next()) {
+        if (user->is_admin) {
+            co_return;  // Remaining pages won't be fetched
+        }
+    }
+}
+```
+
+**Pipeline transformations:**
+
+```c++
+coral::async_generator<Image> decode_images(async_generator<Packet> packets) {
+    ImageDecoder decoder;
+    while (auto packet = co_await packets.next()) {
+        if (auto img = decoder.feed(*packet)) {
+            co_yield std::move(*img);
+        }
+    }
 }
 ```

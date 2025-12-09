@@ -16,10 +16,13 @@ namespace detail {
 class sync_event {
 public:
     void set() noexcept {
-        std::unique_lock lock{mutex_};
+        std::scoped_lock lock{mutex_};
         signaled_ = true;
-        lock.unlock();
         cv_.notify_one();
+        // Note: lock must be held during notify_one() to prevent a race
+        // where the waiting thread wakes up, returns from sync_wait(),
+        // and destroys the condition_variable while notify_one() is still
+        // accessing it internally.
     }
 
     void wait() noexcept {
